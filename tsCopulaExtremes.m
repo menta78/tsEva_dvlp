@@ -412,7 +412,7 @@ IndexWindowCell=[IndexWindowCell,IndexWindowCellx'];
     rhoTotalx=repmat({ones(2,2)},1,in);
     indexToCells=cellfun(@(x) (isempty(x) || size(x,1)<2),monovarProbJointExtrCellx,'UniformOutput',1);
     if any(~indexToCells)
-        rhoTotalx(~indexToCells)=cellfun(@(cFamily,x) tsCopulaFit(cFamily,x),repmat(copulaFamily,in,1),monovarProbJointExtrCellx(~indexToCells),'UniformOutput',0);
+        rhoTotalx(~indexToCells)=cellfun(@(cFamily,x) tsCopulaFit(cFamily,x),repmat(copulaFamily,sum(~indexToCells),1),monovarProbJointExtrCellx(~indexToCells),'UniformOutput',0);
     end
    %rhoTotal=[rhoTotal,rho]; 
 rhoTotal=[rhoTotal,rhoTotalx];
