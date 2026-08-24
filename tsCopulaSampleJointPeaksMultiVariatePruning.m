@@ -2,22 +2,8 @@ function samplingAnalysis = tsCopulaSampleJointPeaksMultiVariatePruning_fast( ..
     inputtimestamps,inputtimeseries,varargin)
 % Fast, interface-compatible candidate implementation for validation.
 % It preserves the original output field names and the symmetric
-% strongest-first temporal-envelope pruning concept.
-
-% PERFORMANCE-OPTIMIZED IMPLEMENTATION
-%
-% This implementation preserves the original function interface, output
-% fields, peak detection, threshold classification, pairwise lag rules,
-% mean-severity ranking and strongest-first temporal-envelope pruning.
-%
-% Performance changes:
-%   - Direct Cartesian generation of one-peak-per-variable candidates
-%     replaces combinatorial nchoosek enumeration.
-%   - Each candidate is generated once using its earliest peak as a
-%     canonical anchor.
-%   - Occupied-timeline pruning replaces quadratic candidate comparisons.
-%
-
+% strongest-first temporal-envelope pruning concept. The original sampler
+% should remain on the MATLAB path while this version is benchmarked.
 
 args.samplingThresholdPrct = [99,99];
 args.minPeakDistanceInDaysMonovarSampling = [3,3];
@@ -78,10 +64,15 @@ allSeriesIndex = vertcat(peakIndices{:});
 sortTable = [allTime,allVar,allSeriesIndex,allLocal];
 sortTable = sortrows(sortTable,[1 2 3]);
 
-candidateIndices = zeros(0,nVar);
-candidateTimes = zeros(0,nVar);
-candidateValues = zeros(0,nVar);
-candidateClass = zeros(0,1); % 1 all exceed, 2 some exceed
+% Collect one block per productive anchor. Repeatedly appending numeric
+% matrices caused MATLAB to copy the complete accumulated catalogue at each
+% iteration and accounted for more than 90% of the profiled runtime.
+nAnchors = size(sortTable,1);
+candidateIndicesCell = cell(nAnchors,1);
+candidateTimesCell = cell(nAnchors,1);
+candidateValuesCell = cell(nAnchors,1);
+candidateClassCell = cell(nAnchors,1);
+nCandidateBlocks = 0;
 
 for ia = 1:size(sortTable,1)
     anchorTime = sortTable(ia,1);
@@ -143,10 +134,24 @@ for ia = 1:size(sortTable,1)
     else
         continue
     end
-    candidateIndices = [candidateIndices;indices(use,:)]; %#ok<AGROW>
-    candidateTimes = [candidateTimes;times(use,:)]; %#ok<AGROW>
-    candidateValues = [candidateValues;values(use,:)]; %#ok<AGROW>
-    candidateClass = [candidateClass;classNow]; %#ok<AGROW>
+    nCandidateBlocks = nCandidateBlocks+1;
+    candidateIndicesCell{nCandidateBlocks} = indices(use,:);
+    candidateTimesCell{nCandidateBlocks} = times(use,:);
+    candidateValuesCell{nCandidateBlocks} = values(use,:);
+    candidateClassCell{nCandidateBlocks} = classNow;
+end
+
+if nCandidateBlocks==0
+    candidateIndices = zeros(0,nVar);
+    candidateTimes = zeros(0,nVar);
+    candidateValues = zeros(0,nVar);
+    candidateClass = zeros(0,1);
+else
+    usedBlocks = 1:nCandidateBlocks;
+    candidateIndices = vertcat(candidateIndicesCell{usedBlocks});
+    candidateTimes = vertcat(candidateTimesCell{usedBlocks});
+    candidateValues = vertcat(candidateValuesCell{usedBlocks});
+    candidateClass = vertcat(candidateClassCell{usedBlocks});
 end
 
 % Defensive de-duplication. The canonical anchor should already make rows
